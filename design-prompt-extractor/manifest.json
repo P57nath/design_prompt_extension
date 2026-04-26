@@ -1,0 +1,23 @@
+{
+  "manifest_version": 3,
+  "name": "Design Prompt Extractor",
+  "description": "Analyze the visual design language of the current page and generate a reusable, copyright-safe design prompt.",
+  "version": "1.0.0",
+  "action": {
+    "default_title": "Design Prompt Extractor",
+    "default_popup": "popup.html"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "storage"
+  ],
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}

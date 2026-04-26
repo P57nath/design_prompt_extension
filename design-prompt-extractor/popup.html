@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Design Prompt Extractor</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <main class="popup">
+      <header class="header">
+        <h1>Design Prompt Extractor</h1>
+        <p>Analyze style patterns only. No text/logo/image cloning.</p>
+      </header>
+
+      <section class="controls">
+        <button id="analyzeBtn" class="btn btn-primary">Analyze Current Page</button>
+        <button id="generateBtn" class="btn">Generate Design Prompt</button>
+        <div class="utility-row">
+          <button id="copyBtn" class="btn btn-small">Copy Prompt</button>
+          <button id="downloadBtn" class="btn btn-small">Download .txt</button>
+        </div>
+      </section>
+
+      <section class="settings">
+        <h2>Settings</h2>
+        <label><input id="includeColors" type="checkbox" /> Include colors</label>
+        <label><input id="includeTypography" type="checkbox" /> Include typography</label>
+        <label><input id="includeLayout" type="checkbox" /> Include layout</label>
+        <label><input id="includeComponents" type="checkbox" /> Include component details</label>
+        <label><input id="includeResponsive" type="checkbox" /> Include responsive suggestions</label>
+        <label class="select-wrap">
+          Output style
+          <select id="outputStyle">
+            <option value="concise">Concise</option>
+            <option value="detailed">Detailed</option>
+            <option value="expert">Expert-level</option>
+          </select>
+        </label>
+      </section>
+
+      <section class="status-panel">
+        <p id="statusText" class="status status-idle">Ready.</p>
+      </section>
+
+      <section class="prompt-panel">
+        <label for="promptOutput">Generated Prompt</label>
+        <textarea id="promptOutput" rows="14" readonly placeholder="Run analysis, then generate the prompt..."></textarea>
+      </section>
+
+      <footer class="footer-note">
+        Design analysis only. Use original content/assets when generating new pages.
+      </footer>
+    </main>
+
+    <script src="utils/promptBuilder.js"></script>
+    <script src="popup.js"></script>
+  </body>
+</html>
