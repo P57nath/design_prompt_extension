@@ -10,7 +10,7 @@
     <main class="popup">
       <header class="header">
         <h1>Design Prompt Extractor</h1>
-        <p>Analyze style patterns only. No text/logo/image cloning.</p>
+        <p>High-fidelity design replication for authorized/owned content only.</p>
       </header>
 
       <section class="controls">
@@ -29,6 +29,9 @@
         <label><input id="includeLayout" type="checkbox" /> Include layout</label>
         <label><input id="includeComponents" type="checkbox" /> Include component details</label>
         <label><input id="includeResponsive" type="checkbox" /> Include responsive suggestions</label>
+        <label><input id="includeScreenshotVisual" type="checkbox" /> Include screenshot-based visual analysis</label>
+        <label><input id="useFullPageStitch" type="checkbox" /> Use multi-screenshot stitched full-page analysis</label>
+        <label><input id="includePageContentCopy" type="checkbox" /> Include page text + section copy in prompt</label>
         <label class="select-wrap">
           Output style
           <select id="outputStyle">
@@ -49,10 +52,11 @@
       </section>
 
       <footer class="footer-note">
-        Design analysis only. Use original content/assets when generating new pages.
+        Inspiration and recreation workflow. Use original branding/assets unless authorized.
       </footer>
     </main>
 
+    <script src="utils/screenshotUtils.js"></script>
     <script src="utils/promptBuilder.js"></script>
     <script src="popup.js"></script>
   </body>

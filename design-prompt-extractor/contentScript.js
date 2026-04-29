@@ -393,10 +393,150 @@
     return Array.from(new Set(tags));
   }
 
-  function analyzePage() {
+  function normalizeText(value) {
+    if (!value || typeof value !== "string") return "";
+    return value.replace(/\s+/g, " ").trim();
+  }
+
+  function isLikelyVisibleForCopy(element) {
+    if (!element) return false;
+    const style = window.getComputedStyle(element);
+    if (!style) return false;
+    if (style.display === "none" || style.visibility === "hidden" || parseFloat(style.opacity || "1") < 0.05) return false;
+    const rect = domUtils.safeRect(element);
+    return !!rect && rect.width > 2 && rect.height > 2;
+  }
+
+  function readElementTextBlocks(element, maxChars) {
+    const limit = Math.max(400, maxChars || 6000);
+    const blocks = Array.from(element.querySelectorAll("h1,h2,h3,h4,p,li,blockquote,figcaption"));
+    const lines = [];
+    for (let i = 0; i < blocks.length; i += 1) {
+      const node = blocks[i];
+      if (!isLikelyVisibleForCopy(node)) continue;
+      const text = normalizeText(node.innerText || node.textContent || "");
+      if (!text || text.length < 2) continue;
+      if (lines.length && lines[lines.length - 1] === text) continue;
+      lines.push(text);
+      if (lines.join("\n").length >= limit) break;
+    }
+    let combined = lines.join("\n");
+    if (!combined) {
+      combined = normalizeText(element.innerText || element.textContent || "");
+    }
+    return combined.slice(0, limit);
+  }
+
+  function uniqueTextList(items, maxItems) {
+    const out = [];
+    const seen = new Set();
+    for (let i = 0; i < items.length; i += 1) {
+      const item = normalizeText(items[i]);
+      if (!item) continue;
+      const key = item.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(item);
+      if (out.length >= maxItems) break;
+    }
+    return out;
+  }
+
+  function labelFromElement(element) {
+    const tag = element.tagName.toLowerCase();
+    const id = normalizeText(element.id || "");
+    const cls = normalizeText((element.className || "").toString().replace(/\s+/g, "."));
+    if (id) return `${tag}#${id}`;
+    if (cls) return `${tag}.${cls.split(".").slice(0, 3).join(".")}`;
+    return tag;
+  }
+
+  function extractPageContentBlueprint() {
+    const metaDescEl = document.querySelector("meta[name='description']");
+    const metaDescription = metaDescEl ? normalizeText(metaDescEl.getAttribute("content") || "") : "";
+
+    const navRaw = Array.from(document.querySelectorAll("header a, nav a, [role='navigation'] a"))
+      .filter(isLikelyVisibleForCopy)
+      .map((a) => normalizeText(a.innerText || a.textContent || ""));
+    const navItems = uniqueTextList(navRaw, 40);
+
+    const ctaRaw = Array.from(
+      document.querySelectorAll("button, [role='button'], a[class*='btn'], a[class*='cta'], input[type='submit'], input[type='button']")
+    ).map((el) => {
+      const tag = el.tagName.toLowerCase();
+      if (tag === "input") return normalizeText(el.value || "");
+      return normalizeText(el.innerText || el.textContent || "");
+    });
+    const ctaTexts = uniqueTextList(ctaRaw, 60);
+
+    const sectionCandidates = Array.from(
+      document.querySelectorAll(
+        "main, main > section, section, article, [role='main'], [role='region'], [class*='section'], [class*='hero'], [class*='feature'], [class*='pricing'], [class*='testimonial'], footer"
+      )
+    ).filter(isLikelyVisibleForCopy);
+
+    const selected = [];
+    const selectedSet = new Set();
+    for (let i = 0; i < sectionCandidates.length; i += 1) {
+      const el = sectionCandidates[i];
+      if (selected.length >= 24) break;
+      let skip = false;
+      let parent = el.parentElement;
+      while (parent) {
+        if (selectedSet.has(parent)) {
+          skip = true;
+          break;
+        }
+        parent = parent.parentElement;
+      }
+      if (skip) continue;
+      selected.push(el);
+      selectedSet.add(el);
+    }
+
+    const sections = [];
+    let totalChars = 0;
+    for (let i = 0; i < selected.length; i += 1) {
+      const el = selected[i];
+      const headingEl = el.querySelector("h1,h2,h3,h4");
+      const heading = headingEl ? normalizeText(headingEl.innerText || headingEl.textContent || "") : "";
+      const text = readElementTextBlocks(el, 7000);
+      if (!text || text.length < 30) continue;
+      const snippet = text.length > 320 ? `${text.slice(0, 320)}...` : text;
+      sections.push({
+        index: sections.length + 1,
+        label: labelFromElement(el),
+        heading: heading || `Section ${sections.length + 1}`,
+        text,
+        snippet
+      });
+      totalChars += text.length;
+      if (totalChars >= 42000) break;
+    }
+
+    return {
+      pageTitle: normalizeText(document.title || ""),
+      metaDescription,
+      navItems,
+      ctaTexts,
+      sections,
+      totals: {
+        sectionCount: sections.length,
+        navCount: navItems.length,
+        ctaCount: ctaTexts.length,
+        copiedTextChars: totalChars
+      },
+      mode: "high_fidelity_visible_text_copy",
+      note:
+        "High-fidelity content copy includes visible text and section structure. Review and rewrite as needed to avoid proprietary duplication."
+    };
+  }
+
+  function analyzePage(settings) {
     if (!document.body) {
       throw new Error("No body found on this page.");
     }
+    const opts = settings || {};
 
     const viewportWidth = window.innerWidth;
     const viewportHeight = window.innerHeight;
@@ -898,7 +1038,116 @@
       }
     };
 
+    if (opts.includePageContentCopy !== false) {
+      analysis.contentBlueprint = extractPageContentBlueprint();
+    } else {
+      analysis.contentBlueprint = {
+        mode: "disabled",
+        note: "Content copy extraction was disabled in settings."
+      };
+    }
+
     return analysis;
+  }
+
+  function clamp(value, min, max) {
+    return Math.min(max, Math.max(min, value));
+  }
+
+  function getDocumentHeight() {
+    const body = document.body;
+    const html = document.documentElement;
+    if (!body || !html) return window.innerHeight;
+    return Math.max(
+      body.scrollHeight,
+      body.offsetHeight,
+      html.clientHeight,
+      html.scrollHeight,
+      html.offsetHeight
+    );
+  }
+
+  function buildCaptureOffsets(docHeight, viewportHeight, options) {
+    const opts = options || {};
+    const overlapRatio = clamp(typeof opts.overlapRatio === "number" ? opts.overlapRatio : 0.16, 0, 0.6);
+    const maxShots = clamp(typeof opts.maxShots === "number" ? opts.maxShots : 14, 2, 30);
+    const step = Math.max(80, Math.floor(viewportHeight * (1 - overlapRatio)));
+    const maxStart = Math.max(0, docHeight - viewportHeight);
+    const offsets = [0];
+    for (let y = step; y < maxStart; y += step) {
+      offsets.push(y);
+    }
+    if (maxStart > 0) offsets.push(maxStart);
+
+    const unique = Array.from(new Set(offsets.map((v) => Math.max(0, Math.round(v)))));
+    if (unique.length <= maxShots) return unique;
+
+    const sampled = [];
+    for (let i = 0; i < maxShots; i += 1) {
+      const index = Math.round((i * (unique.length - 1)) / (maxShots - 1));
+      sampled.push(unique[index]);
+    }
+    return Array.from(new Set(sampled));
+  }
+
+  function ensureCaptureState() {
+    if (!window.__DPE_CAPTURE_STATE__) {
+      window.__DPE_CAPTURE_STATE__ = {
+        originalX: 0,
+        originalY: 0,
+        htmlScrollBehavior: "",
+        bodyScrollBehavior: "",
+        prepared: false
+      };
+    }
+    return window.__DPE_CAPTURE_STATE__;
+  }
+
+  function scrollToPosition(top) {
+    return new Promise((resolve) => {
+      window.scrollTo({ top: Math.max(0, Math.round(top)), left: 0, behavior: "auto" });
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => resolve(window.scrollY || window.pageYOffset || 0));
+      });
+    });
+  }
+
+  async function prepareFullPageCapture(options) {
+    const state = ensureCaptureState();
+    const html = document.documentElement;
+    const body = document.body;
+    state.originalX = window.scrollX || window.pageXOffset || 0;
+    state.originalY = window.scrollY || window.pageYOffset || 0;
+    state.htmlScrollBehavior = html && html.style ? html.style.scrollBehavior : "";
+    state.bodyScrollBehavior = body && body.style ? body.style.scrollBehavior : "";
+    if (html && html.style) html.style.scrollBehavior = "auto";
+    if (body && body.style) body.style.scrollBehavior = "auto";
+
+    const docHeight = getDocumentHeight();
+    const viewportHeight = window.innerHeight;
+    const viewportWidth = window.innerWidth;
+    const offsets = buildCaptureOffsets(docHeight, viewportHeight, options);
+    state.prepared = true;
+
+    await scrollToPosition(0);
+
+    return {
+      docHeight,
+      viewportHeight,
+      viewportWidth,
+      devicePixelRatio: window.devicePixelRatio || 1,
+      offsets
+    };
+  }
+
+  async function restoreFullPageCapture() {
+    const state = ensureCaptureState();
+    const html = document.documentElement;
+    const body = document.body;
+    if (html && html.style) html.style.scrollBehavior = state.htmlScrollBehavior || "";
+    if (body && body.style) body.style.scrollBehavior = state.bodyScrollBehavior || "";
+    await scrollToPosition(state.originalY || 0);
+    state.prepared = false;
   }
 
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
@@ -907,7 +1156,7 @@
     }
     if (message.type === "ANALYZE_PAGE") {
       try {
-        const analysis = analyzePage();
+        const analysis = analyzePage(message.settings || {});
         window.__DPE_LAST_ANALYSIS__ = analysis;
         sendResponse({ ok: true, analysis });
       } catch (error) {
@@ -923,6 +1172,39 @@
         ok: !!window.__DPE_LAST_ANALYSIS__,
         analysis: window.__DPE_LAST_ANALYSIS__ || null
       });
+      return true;
+    }
+    if (message.type === "PREPARE_FULLPAGE_CAPTURE") {
+      prepareFullPageCapture(message.options || {})
+        .then((capturePlan) => sendResponse({ ok: true, capturePlan }))
+        .catch((error) =>
+          sendResponse({
+            ok: false,
+            error: error && error.message ? error.message : "Could not prepare full-page capture."
+          })
+        );
+      return true;
+    }
+    if (message.type === "SCROLL_TO_CAPTURE_OFFSET") {
+      scrollToPosition(message.offset || 0)
+        .then((positionY) => sendResponse({ ok: true, positionY }))
+        .catch((error) =>
+          sendResponse({
+            ok: false,
+            error: error && error.message ? error.message : "Could not scroll to capture offset."
+          })
+        );
+      return true;
+    }
+    if (message.type === "RESTORE_CAPTURE_SCROLL") {
+      restoreFullPageCapture()
+        .then(() => sendResponse({ ok: true }))
+        .catch((error) =>
+          sendResponse({
+            ok: false,
+            error: error && error.message ? error.message : "Could not restore original scroll position."
+          })
+        );
       return true;
     }
     return false;

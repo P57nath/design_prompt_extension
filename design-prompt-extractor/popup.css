@@ -26,6 +26,14 @@ body {
     var(--bg);
   font-family: "Trebuchet MS", "Lucida Sans", "Segoe UI", sans-serif;
   color: var(--text);
+  opacity: 0;
+  transform: translateY(8px) scale(0.992);
+  transition: opacity 220ms ease, transform 240ms ease;
+}
+
+body.popup-ready {
+  opacity: 1;
+  transform: translateY(0) scale(1);
 }
 
 .popup {
@@ -43,6 +51,51 @@ body {
   box-shadow: var(--shadow);
   padding: 10px;
   margin-bottom: 10px;
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity 220ms ease, transform 260ms ease;
+}
+
+body.popup-ready .header,
+body.popup-ready .controls,
+body.popup-ready .settings,
+body.popup-ready .status-panel,
+body.popup-ready .prompt-panel {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+body.popup-ready .header {
+  transition-delay: 20ms;
+}
+
+body.popup-ready .controls {
+  transition-delay: 50ms;
+}
+
+body.popup-ready .settings {
+  transition-delay: 80ms;
+}
+
+body.popup-ready .status-panel {
+  transition-delay: 110ms;
+}
+
+body.popup-ready .prompt-panel {
+  transition-delay: 140ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body,
+  .header,
+  .controls,
+  .settings,
+  .status-panel,
+  .prompt-panel {
+    transition: none !important;
+    transform: none !important;
+    opacity: 1 !important;
+  }
 }
 
 .header h1 {

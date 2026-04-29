@@ -2,7 +2,7 @@
 
 `Design Prompt Extractor` is a Manifest V3 Chrome extension that analyzes the visible design system of the current webpage and generates a reusable, copyright-safe design prompt for AI webpage generation tools.
 
-It focuses on **style analysis only** (layout, color, typography, component patterns) and avoids cloning proprietary text, logos, images, or brand assets.
+It supports high-fidelity design replication workflows for **authorized/owned content only**.
 
 ## Project Structure
 
@@ -18,6 +18,7 @@ design-prompt-extractor/
     colorUtils.js
     domUtils.js
     promptBuilder.js
+    screenshotUtils.js
   icons/
     icon16.png
     icon48.png
@@ -39,12 +40,19 @@ design-prompt-extractor/
     - Include layout
     - Include component details
     - Include responsive suggestions
+    - Include screenshot-based visual analysis
+    - Use multi-screenshot stitched full-page analysis
+    - Include page text + section copy in prompt
     - Output style: concise / detailed / expert-level
 - Visible-DOM analysis strategy:
   - Prioritized semantic sampling
   - Viewport filtering (`getBoundingClientRect`)
   - Hidden/off-screen exclusion
   - Repeated pattern summarization
+- Screenshot-based visual analysis strategy:
+  - Captures either current viewport or multi-screenshot stitched full-page view locally
+  - Runs pixel-level analysis in extension context (no server/API)
+  - Extracts dominant pixel palette, brightness, contrast, saturation, whitespace, and composition emphasis
 - Extracted design signals:
   - Color roles and grouped palettes
   - Typography scales and heading/body patterns
@@ -53,6 +61,8 @@ design-prompt-extractor/
   - Shape/shadow patterns
   - Current-viewport responsive observations
   - Basic accessibility notes
+  - Screenshot-driven visual cues (tone, density, whitespace, contrast, emphasis zone)
+  - Optional high-fidelity content blueprint (visible section text copy + nav/CTA labels)
 - Prompt generation:
   - Structured reusable prompt sections (1-12)
   - Copyright-safe wording
@@ -77,7 +87,7 @@ design-prompt-extractor/
 
 ## How Analysis Works (v1)
 
-The extension injects utility scripts + a content script into the active tab only when analysis is requested.
+The extension injects utility scripts + a content script into the active tab only when analysis is requested, then optionally performs local screenshot analysis from the popup.
 
 ### Sampling strategy
 
@@ -85,6 +95,24 @@ The extension injects utility scripts + a content script into the active tab onl
 - Skips hidden/non-visual nodes (`script`, `style`, SVG internals, off-screen/zero-size elements).
 - Uses `window.getComputedStyle()` and `getBoundingClientRect()` for visual metrics.
 - Limits element count and summarizes repeated component patterns to avoid noisy output.
+
+### Screenshot strategy
+
+- Captures the active viewport with `chrome.tabs.captureVisibleTab`.
+- Optional full-page mode:
+  - Builds a scroll capture plan in content script
+  - Scrolls the page in overlapping steps
+  - Captures multiple viewport screenshots
+  - Stitches them into one full-page composite
+- Downscales and samples pixels for fast local processing.
+- Computes:
+  - dominant screenshot colors
+  - brightness range and tone (light/dark)
+  - colorfulness (muted/balanced/vibrant)
+  - whitespace ratio
+  - visual density (edge/complexity signal)
+  - top/middle/bottom composition emphasis
+- Stores only summary metrics in memory for prompt generation.
 
 ### Data extracted
 
@@ -107,6 +135,8 @@ The extension injects utility scripts + a content script into the active tab onl
   - Image treatment signals
   - Current viewport responsive observations
   - Accessibility hints
+  - Screenshot visual cues (if enabled)
+  - Content blueprint block with copied visible section text (if enabled)
 
 ## Privacy and Safety Notes
 
@@ -115,11 +145,12 @@ The extension injects utility scripts + a content script into the active tab onl
 - No paid API required.
 - No external data transfer by v1.
 - Intended for style/system inspiration only.
-- Not intended to clone copyrighted content.
+- Use only with content you own or are authorized to reproduce.
 - Prompt output explicitly recommends:
   - similar design language
   - original content/assets
   - no proprietary text/logo/image copying
+  - manual review of copied text before reuse
 
 ## Minimum Permissions Used
 
@@ -155,10 +186,11 @@ Create a webpage with a comparable style system, use placeholder content and ori
 1. Load unpacked extension without manifest errors.
 2. Open a normal website (not `chrome://` pages).
 3. Click **Analyze Current Page** and verify success status.
-4. Click **Generate Design Prompt** and verify prompt content appears.
-5. Click **Copy Prompt** and paste result elsewhere.
-6. Click **Download .txt** and verify file contents.
-7. Toggle settings and reopen popup to confirm persistence.
+4. If full-page stitch is enabled, confirm status mentions full-page stitched analysis with segment count.
+5. Click **Generate Design Prompt** and verify prompt content appears.
+6. Click **Copy Prompt** and paste result elsewhere.
+7. Click **Download .txt** and verify file contents.
+8. Toggle settings and reopen popup to confirm persistence.
 
 ## Debugging Tips
 
@@ -169,6 +201,7 @@ Create a webpage with a comparable style system, use placeholder content and ori
 - If analysis fails:
   - Reload the webpage and retry.
   - Some pages with strict CSP or highly dynamic rendering may reduce available signals.
+  - If screenshot analysis fails on a restricted page, DOM analysis still runs and prompt generation remains available.
 - If prompt is empty:
   - Run Analyze first.
   - Verify `contentScript.js` and utility files exist in extension root.
@@ -178,15 +211,17 @@ Create a webpage with a comparable style system, use placeholder content and ori
 ## Known Limitations (v1)
 
 - Analyzes visible/current DOM styles only.
+- Full-page stitched capture can include repeated sticky headers/nav areas due overlap stitching.
+- Very long pages are sampled with a shot limit, so stitched analysis is representative rather than perfect pixel-complete.
+- Copied content blueprint is based on visible/rendered section text and may include repetitive boilerplate; review before production use.
 - Interactive/hidden states may not be fully captured.
-- Does not clone any webpage.
+- Intended for authorized/owned webpages and content replication workflows.
 - Does not extract copyrighted logos/images/text.
 - Canvas-heavy or highly dynamic apps may provide limited style signals.
 - Responsive guidance is based mainly on the current viewport snapshot.
 
 ## Future Improvements
 
-- Screenshot-based visual analysis
 - AI-assisted prompt refinement
 - Export as JSON design tokens
 - Export Tailwind config scaffold
